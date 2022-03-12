@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -31,6 +32,11 @@ var(
 	tags string = "img,section,div,h1,h2,h3,h4,h5,h6,input,label,button,body,comp"
 )
 // types
+type State struct {
+	name string
+	value string
+	parent *Element
+}
 type method struct{
    name string
    function func()
@@ -68,6 +74,7 @@ type Element struct {
 	Name string
 	ParentNode *Element
 	Children   []*Element
+	states []State
 }
 type Events struct{
 	Type string `json:"type"`
@@ -111,7 +118,7 @@ func OnWait(){
 // control window
 func isWindows(w Window) bool {
 
-	cmd := exec.Command("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "--app="+fmt.Sprintf("%s", rootserv),"--window-size="+fmt.Sprint(w.Width)+","+fmt.Sprint(w.Height),"--window-position="+fmt.Sprint(w.PosX)+","+fmt.Sprint(w.PosY))
+	cmd := exec.Command("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "--app="+fmt.Sprintf("%s", rootserv),"--window-size="+fmt.Sprint(w.Width)+","+fmt.Sprint(w.Height),"--window-position="+fmt.Sprint(w.PosX)+","+fmt.Sprint(w.PosY),"--window-style=none")
 	if err := cmd.Start(); err != nil { // Ejecutar comando
 		cmd := exec.Command("c:/Program Files (x86)/Google/Chrome/Application/./chrome", "--app="+fmt.Sprintf("%s", rootserv),"--window-size="+fmt.Sprint(w.Width)+","+fmt.Sprint(w.Height),"--window-position="+fmt.Sprint(w.PosX)+","+fmt.Sprint(w.PosY))
 		if err := cmd.Start(); err != nil { // Ejecutar comando
@@ -225,6 +232,7 @@ func New(content Component , w Window){
 		for _, child := range childsApp{
 			child.Action()
 		}
+		//uploadValues(replaceVar(simplyConten))
 	})
 }
 // building html con componentes 
@@ -237,6 +245,28 @@ func Build( ele string )string{
 	}
 	//fmt.Println(ele.Model)
 	return ele
+}
+func readCss()string{
+	css,_ := os.ReadFile("./src/style.css")
+	return string(css)
+}
+func GetFile(path string)string{
+	conten,err := (os.ReadFile(path))
+	if err != nil{fmt.Println(err)}
+	return Clean(string(conten))
+}
+func NewState(n string , v string)(res *State){
+	_,caller,_,_ := runtime.Caller(1) 
+	caller = strings.ToLower(caller[strings.LastIndex(caller,"/")+1:len(caller)-3])
+	for index ,ele := range Dom{
+		if ele.ClassName == caller{
+			ele.states = append(ele.states,State{name: n,value: v,parent:ele})
+			inner := strings.ReplaceAll(ele.innerHtml,"$"+n,v)
+			ele.uploadInnerHTML(inner)
+			res = &ele.states[index]
+		}
+	}
+	return 
 }
 // comunication
 func send( sms string ){
@@ -265,14 +295,9 @@ func reciver(w http.ResponseWriter, r *http.Request) {
 		evalOptions(string(tempSMS))
 	}
 }
-func readCss()string{
-	css,_ := os.ReadFile("./src/style.css")
-	return string(css)
-}
 func serv(w http.ResponseWriter, r *http.Request){
 	w.Write([]byte(contenido))
 	http.FileServer(http.Dir("./src"))
- 
 }
 func newServer() {
 	http.HandleFunc(rootws, reciver)
@@ -337,32 +362,6 @@ func eval( s string ){
 // animation 
 func getBoince()string{
 	return `@keyframes bounceIn{0%{opacity: 0;transform: scale(0.3) translate3d(0,0,0);}50%{opacity: 0.9;transform: scale(1.1);}80%{opacity: 1;transform: scale(0.89);}100%{opacity: 1;transform: scale(1) translate3d(0,0,0);}}`
-}
-// methods ui
-func getNameComponent(str string )string {
-
-	res := strings.Index(str,"class")
-	if res != -1 {
-		str = str[res:res+20]
-		str = strings.Split(str,"=")[1]
-		str = strings.Replace(str, `'`,"",1)
-		res:= strings.Index(str,`'`)
-		str = str[:res]
-		str = strings.TrimSpace(str)
-		str = ToFirstUpperCase(str)
-	}else{
-		fmt.Println("error al obtener el nombre ")
-		str = ""
-	}
-	return str
-}
-func AddChilds(childs ...*Component){
-	for i,v :=range childs{
-		
-		childs[i].name = getNameComponent(v.Model())
-
-	}
-	childsApp = append(childsApp,childs...)
 }
 // utils
 func Clean(s string)string{
@@ -608,7 +607,12 @@ func (e *Element) SetInnerHTML(html string) {
 		clouse := "</" + e.TagName + ">"
 		e.innerHtml = html
 		e.OuterHtml = strings.Replace(e.OuterHtml , clouse , html + clouse, 1)
-		js := "document.querySelector(`[key='"+ fmt.Sprint(e.ref) +"']`).innerHTML ='" + html + "'"
+		js := "document.querySelector(`[key='"+ fmt.Sprint(e.ref) +"']`).innerHTML =`" + html + "`"
+		eval( `{"type":"eval","js":"`+ js +`"}` )	}
+}
+func (e *Element) uploadInnerHTML(html string) {
+	if e.TagName != "input"{
+		js := "document.querySelector(`[key='"+ fmt.Sprint(e.ref) +"']`).innerHTML =`" + html + "`"
 		eval( `{"type":"eval","js":"`+ js +`"}` )	}
 }
 func (e *Element) GetInnerHTML() string {
@@ -682,7 +686,8 @@ func (e *Element) SetValue(v string){
 	js := "document.querySelector(`[key='"+ e.GetRef() +"']`).value = '"+ v +"'"
 	eval(`{"type":"eval","js":"`+ js +`"}`)
 }
-func (e *Element) AddEventListener(t string, n string , f func()){
+func (e *Element) AddEventListener(t string, f func()){
+	n := "method_"+fmt.Sprint(len(methods))
 	Bind(n,f)
 	js := "document.querySelector(`[key='"+ e.GetRef()+"']`).addEventListener('"+ t +"',"+ n +")"
 	eval (`{"type":"eval","js":"`+ js +`"}`)
@@ -704,13 +709,36 @@ func Styles( css string )string{
 	return css
 }
 // components
+func NewComponent(action func(),model func()string)Component{
+	_,caller,_,_ := runtime.Caller(1)
+	caller = strings.TrimSpace(caller[strings.LastIndex(caller,"/")+1:len(caller)-3])
+	return Component{Action:action,Model:model ,name:caller}
+}
+func AddChilds(childs ...*Component){
+	childsApp = append(childsApp,childs...)
+}
 func (e *Component) AddChilds(childs ...*Component){
 	AddChilds(childs...)
 }
 func (e *Component) SetName(n string){
 	e.name = n
 }
-
+// states
+func ( s *State ) Get()string{
+	return s.value
+}
+func ( s *State ) Set(v string){
+	inner := s.parent.innerHtml
+	inner = strings.ReplaceAll(inner,"$"+s.name,v)
+	s.parent.uploadInnerHTML(inner)
+	s.value = v
+}
+func Delay(t time.Duration , callback func()){
+	go func(){
+		time.Sleep(t)
+		callback()
+	}()
+}
 
 
 
