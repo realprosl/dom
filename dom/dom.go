@@ -75,6 +75,7 @@ type Element struct {
 	ParentNode *Element
 	Children   []*Element
 	states []State
+	parentComponent *Component
 }
 type Events struct{
 	Type string `json:"type"`
@@ -236,8 +237,17 @@ func New(content Component , w Window){
 	})
 }
 // building html con componentes 
+func comprovateClassName( ele string){
+
+	if  !strings.Contains(strings.Split(ele,">")[0] , "class"){
+		panic("Syntax error : El componente padre debe llevar un className igual que nombre del componente como identificacion interna")
+	}
+}
+
 func Build( ele string )string{
-	
+
+	go comprovateClassName(ele)
+
 	for _, child := range childsApp{
 		if strings.Contains(ele,"</"+child.name+">"){
 			ele = strings.Replace(ele,"</"+child.name+">",child.Model(),1)
@@ -595,10 +605,6 @@ func SelectorAll(q string)(ele []*Element){
 	return 
 }
 // methods
-func (e *Element) Prueba(){
-	js := "console.log(document.querySelector(`[key='3']`))"
-	eval( `{"type":"eval","js":"`+ js +`"}` )
-}
 func (e *Element) GetRef()string{
 	return fmt.Sprint(e.ref)
 }
@@ -703,10 +709,6 @@ func (ev *Events) GetTarget()(ele *Element){
 	}
 	if ele == nil { ele = &Element{}}
 	return
-}
-// styles
-func Styles( css string )string{
-	return css
 }
 // components
 func NewComponent(action func(),model func()string)Component{
