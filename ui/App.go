@@ -1,11 +1,26 @@
 package ui
 
-import "app/dom"
+import (
+	"app/dom"
+)
+var Message *dom.State
 
-var App = dom.Component{
+var App = dom.NewComponent(
+		//Action
+		func(){
 
-	Action:func() {},
-	Model: func()string{
-		return `<h1>Hola mundo </h1>`
-	},
-}
+			Message = dom.NewState("message","Hello world")
+		},
+		//Model
+		func()string{
+
+			dom.AddChilds(&Botonera)
+			
+			return `
+				<div class='app'>
+					<h1>$message</h1>
+					</Botonera>
+				</div>
+			`
+		},
+)
