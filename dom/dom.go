@@ -29,6 +29,7 @@ var(
 	Dom []*Element
 	document *Element = &Element{ TagName: "document",}
 	childsApp []*Component
+	states []*State
 	tags string = "img,section,div,h1,h2,h3,h4,h5,h6,input,label,button,body,comp"
 )
 // types
@@ -74,7 +75,6 @@ type Element struct {
 	Name string
 	ParentNode *Element
 	Children   []*Element
-	states []State
 	parentComponent *Component
 }
 type Events struct{
@@ -98,6 +98,43 @@ func Log( s ...interface{}){
 func ToFirstUpperCase(str string)string{
 	str = strings.ToTitle(str[:1]) + str[1:]
 	return str
+}
+func Clean(s string)string{
+	res := strings.ReplaceAll(strings.ReplaceAll(s , "\t",""),"\n","")
+	if strings.Contains(res ,"> <"){
+		res = strings.ReplaceAll(res ,"> <","><")
+	}
+	return res
+}
+func (p *Element) uploadInners(){
+	parent := p
+	for{
+		if parent.ParentNode != nil{
+			parent = parent.ParentNode
+			parent.innerHtml = ""
+			endCabecera := strings.Index(parent.OuterHtml,">")
+			open := parent.OuterHtml[:endCabecera+1]
+			close := "</"+ parent.TagName + ">"
+			for _, v := range parent.Children{
+				parent.innerHtml += v.OuterHtml
+			}
+			parent.OuterHtml = open + parent.innerHtml + close
+		}else{ break }
+	}
+}
+func getNameByMethod(f string,m string)(name string){
+	file,err:= os.ReadFile(f)
+	if err != nil { fmt.Println(err) }
+	sliceString := strings.Split(string(file),"\n")
+	for _, line := range sliceString{
+		if strings.Contains(line,m){
+			name = strings.TrimSpace(strings.ReplaceAll(strings.Split(line,"=")[0],":",""))
+			if !stateExists(name){
+				return 
+			}
+		}
+	}
+	return 
 }
 // eventos
 func onWindowLoad(call func()){
@@ -243,7 +280,6 @@ func comprovateClassName( ele string){
 		panic("Syntax error : El componente padre debe llevar un className igual que nombre del componente como identificacion interna")
 	}
 }
-
 func Build( ele string )string{
 
 	go comprovateClassName(ele)
@@ -264,19 +300,6 @@ func GetFile(path string)string{
 	conten,err := (os.ReadFile(path))
 	if err != nil{fmt.Println(err)}
 	return Clean(string(conten))
-}
-func NewState(n string , v string)(res *State){
-	_,caller,_,_ := runtime.Caller(1) 
-	caller = strings.ToLower(caller[strings.LastIndex(caller,"/")+1:len(caller)-3])
-	for index ,ele := range Dom{
-		if ele.ClassName == caller{
-			ele.states = append(ele.states,State{name: n,value: v,parent:ele})
-			inner := strings.ReplaceAll(ele.innerHtml,"$"+n,v)
-			ele.uploadInnerHTML(inner)
-			res = &ele.states[index]
-		}
-	}
-	return 
 }
 // comunication
 func send( sms string ){
@@ -372,30 +395,6 @@ func eval( s string ){
 // animation 
 func getBoince()string{
 	return `@keyframes bounceIn{0%{opacity: 0;transform: scale(0.3) translate3d(0,0,0);}50%{opacity: 0.9;transform: scale(1.1);}80%{opacity: 1;transform: scale(0.89);}100%{opacity: 1;transform: scale(1) translate3d(0,0,0);}}`
-}
-// utils
-func Clean(s string)string{
-	res := strings.ReplaceAll(strings.ReplaceAll(s , "\t",""),"\n","")
-	if strings.Contains(res ,"> <"){
-		res = strings.ReplaceAll(res ,"> <","><")
-	}
-	return res
-}
-func (p *Element) uploadInners(){
-	parent := p
-	for{
-		if parent.ParentNode != nil{
-			parent = parent.ParentNode
-			parent.innerHtml = ""
-			endCabecera := strings.Index(parent.OuterHtml,">")
-			open := parent.OuterHtml[:endCabecera+1]
-			close := "</"+ parent.TagName + ">"
-			for _, v := range parent.Children{
-				parent.innerHtml += v.OuterHtml
-			}
-			parent.OuterHtml = open + parent.innerHtml + close
-		}else{ break }
-	}
 }
 // instanciate
 func NewElement(t string) (e *Element) {
@@ -726,14 +725,43 @@ func (e *Component) SetName(n string){
 	e.name = n
 }
 // states
+func NewState( v string)(res *State){
+	_,caller,_,_ := runtime.Caller(1) 
+	n := getNameByMethod(caller,"dom.NewState")
+	caller = strings.ToLower(caller[strings.LastIndex(caller,"/")+1:len(caller)-3])
+	for _,ele := range Dom{
+		if ele.ClassName == caller{
+			states = append(states,&State{name: n,value: v,parent:ele})
+			inner := ele.innerHtml
+			for _,item := range states{
+				if item.parent == ele{
+					inner = strings.ReplaceAll(inner,"$"+item.name,item.value)
+				}
+			}
+			ele.uploadInnerHTML(inner)
+			res = states[len(states)-1]
+		}
+	}
+	return 
+}
+func stateExists(n string) bool{
+	for _, v := range states{
+		if v.name == n {
+			return true
+		}
+	}
+	return false
+}
 func ( s *State ) Get()string{
 	return s.value
 }
 func ( s *State ) Set(v string){
 	inner := s.parent.innerHtml
-	inner = strings.ReplaceAll(inner,"$"+s.name,v)
-	s.parent.uploadInnerHTML(inner)
 	s.value = v
+	for _,item := range states{
+				inner = strings.ReplaceAll(inner,"$"+item.name,item.value)
+	}
+	s.parent.uploadInnerHTML(inner)
 }
 func Delay(t time.Duration , callback func()){
 	go func(){
