@@ -3,13 +3,15 @@ package ui
 import (
 	"app/dom"
 )
-var Message *dom.State
 
+var Message *dom.State 
+var Otro *dom.State
 var App = dom.NewComponent(
 		//Action
 		func(){
 
-			Message = dom.NewState("message","Hello world")
+			Message = dom.NewState("Hello world")
+			Otro = dom.NewState("hola state")
 		},
 		//Model
 		func()string{
@@ -18,7 +20,8 @@ var App = dom.NewComponent(
 			
 			return `
 				<div class='app'>
-					<h1>$message</h1>
+					<h1>$Message</h1>
+					<h2>$Otro</h2>
 					</Botonera>
 				</div>
 			`

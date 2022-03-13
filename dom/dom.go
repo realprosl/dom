@@ -15,7 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 var(
-	Default = Window{Width:300,Height:300,PosX:100,PosY:100,Icon: "",Title:""}
+	DEFAULT = Window{Size:Size(300,300),Pos:Pos(100,100),Icon: "",Title:""}
 	upgrader = websocket.Upgrader{}
 	port string = ":5555"
 	rootws string = "/ws"
@@ -42,11 +42,17 @@ type method struct{
    name string
    function func()
 }
-type Window struct {
+type size struct{
 	Width int
 	Height int
+}
+type pos struct {
 	PosX int
 	PosY int
+}
+type Window struct {
+	Size size
+	Pos pos
 	Icon string
 	Title string
 }
@@ -85,6 +91,27 @@ type Events struct{
 type Attrs struct{
 	Type string
 	Value string
+}
+// window 
+func NewWindow(s size,p pos,i string , t string)Window{
+	return Window{Size:s,Pos:p,Icon: i,Title: t}
+}
+func Size(w int , h int)size{
+	return size{Width: w,Height: h}
+}
+func (p pos) dividir(c int)pos{
+	p.PosX = p.PosX/c
+	p.PosY = p.PosY/c
+	return p
+} 
+func Pos(x int , y int)pos{
+	return pos{PosX: x,PosY: y}
+}
+func Center()pos{
+	return Pos(1300,800).dividir(4)
+}
+func SizeDefault()size{
+	return Size(300,300)
 }
 // utils 
 func Error(err error){
@@ -156,9 +183,9 @@ func OnWait(){
 // control window
 func isWindows(w Window) bool {
 
-	cmd := exec.Command("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "--app="+fmt.Sprintf("%s", rootserv),"--window-size="+fmt.Sprint(w.Width)+","+fmt.Sprint(w.Height),"--window-position="+fmt.Sprint(w.PosX)+","+fmt.Sprint(w.PosY),"--window-style=none")
+	cmd := exec.Command("C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe", "--app="+fmt.Sprintf("%s", rootserv),"--window-size="+fmt.Sprint(w.Size.Width)+","+fmt.Sprint(w.Size.Height),"--window-position="+fmt.Sprint(w.Pos.PosX)+","+fmt.Sprint(w.Pos.PosY),"--window-style=none")
 	if err := cmd.Start(); err != nil { // Ejecutar comando
-		cmd := exec.Command("c:/Program Files (x86)/Google/Chrome/Application/./chrome", "--app="+fmt.Sprintf("%s", rootserv),"--window-size="+fmt.Sprint(w.Width)+","+fmt.Sprint(w.Height),"--window-position="+fmt.Sprint(w.PosX)+","+fmt.Sprint(w.PosY))
+		cmd := exec.Command("c:/Program Files (x86)/Google/Chrome/Application/./chrome", "--app="+fmt.Sprintf("%s", rootserv),"--window-size="+fmt.Sprint(w.Size.Width)+","+fmt.Sprint(w.Size.Height),"--window-position="+fmt.Sprint(w.Pos.PosX)+","+fmt.Sprint(w.Pos.PosY))
 		if err := cmd.Start(); err != nil { // Ejecutar comando
 
 			log.Fatal(err)
@@ -330,7 +357,7 @@ func reciver(w http.ResponseWriter, r *http.Request) {
 }
 func serv(w http.ResponseWriter, r *http.Request){
 	w.Write([]byte(contenido))
-	http.FileServer(http.Dir("./src"))
+	http.FileServer(http.Dir("./src/"))
 }
 func newServer() {
 	http.HandleFunc(rootws, reciver)
@@ -769,8 +796,6 @@ func Delay(t time.Duration , callback func()){
 		callback()
 	}()
 }
-
-
 
 
 
